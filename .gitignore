@@ -35,13 +35,83 @@ MANIFEST
 venv/
 env/
 ENV/
+.venv/
 
 # IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
+*.sublime-workspace
+*.sublime-project
 
 # OS files
 .DS_Store
 Thumbs.db
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Streamlit
+.streamlit/secrets.toml
+.streamlit/cache/
+.streamlit/logs/
+
+# Application logs
+*.log
+app.log
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+georef.db
+
+# IDE and editor
+.DS_Store
+.AppleDouble
+.LSOverride
+*.sublime-text-project
+*.sublime-workspace
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+__pycache__/
+
+# Azure
+.azure/
+*.azureauth
+
+# Node modules (if any frontend components)
+node_modules/
+npm-debug.log
+
+# Package manager cache
+.pip-cache/
+.npm-cache/
+
+# Testing coverage
+htmlcov/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+.tox/
+
+# Distribution files
+dist/
+build/
+*.egg-info/
+
+# IDE plugins/extensions
+.pylint.d/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
