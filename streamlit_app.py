@@ -2,7 +2,7 @@
 from app.config import settings
 from app.database import init_db
 from app.ui.session_manager import SessionManager
-from app.ui.pages import auth, home, map, annotations, validations
+from app.ui.pages import auth, home, map, annotations, validations, dashboard
 
 # Configuración página
 st.set_page_config(
@@ -57,6 +57,7 @@ with st.sidebar:
 
         pages = {
             "🏠 Inicio": "home",
+            "📊 Dashboard": "dashboard",
             "🗺️ Mapa": "map",
             "✅ Validaciones": "validations",
             "💬 Anotaciones": "annotations",
@@ -64,7 +65,7 @@ with st.sidebar:
 
         # Agregar opción admin si es admin
         if user['role'] == "admin":
-            pages["📊 Admin"] = "admin"
+            pages["👑 Admin"] = "admin"
 
         current_page = st.radio(
             "Selecciona una sección",
@@ -129,6 +130,8 @@ else:
     # Cargar página
     if current_page == "home":
         home.show_home()
+    elif current_page == "dashboard":
+        dashboard.show_dashboard()
     elif current_page == "map":
         map.show_map()
     elif current_page == "validations":
@@ -136,7 +139,7 @@ else:
     elif current_page == "annotations":
         annotations.show_annotations()
     elif current_page == "admin":
-        st.title("📊 Panel de Administración")
+        st.title("👑 Panel de Administración")
         st.info("🚧 Panel admin en desarrollo...")
     else:
         home.show_home()
