@@ -2,7 +2,7 @@
 from app.config import settings
 from app.database import init_db
 from app.ui.session_manager import SessionManager
-from app.ui.pages import auth, home, map
+from app.ui.pages import auth, home, map, annotations
 
 # Configuración página
 st.set_page_config(
@@ -135,8 +135,7 @@ else:
         st.title("✅ Validaciones")
         st.info("🚧 Página de validaciones en desarrollo...")
     elif current_page == "annotations":
-        st.title("💬 Anotaciones")
-        st.info("🚧 Página de anotaciones en desarrollo...")
+        annotations.show_annotations()
     elif current_page == "admin":
         st.title("📊 Panel de Administración")
         st.info("🚧 Panel admin en desarrollo...")
