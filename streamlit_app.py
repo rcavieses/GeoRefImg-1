@@ -2,7 +2,7 @@
 from app.config import settings
 from app.database import init_db
 from app.ui.session_manager import SessionManager
-from app.ui.pages import auth, home
+from app.ui.pages import auth, home, map
 
 # Configuración página
 st.set_page_config(
@@ -130,8 +130,7 @@ else:
     if current_page == "home":
         home.show_home()
     elif current_page == "map":
-        st.title("🗺️ Mapa")
-        st.info("🚧 Página de mapa en desarrollo...")
+        map.show_map()
     elif current_page == "validations":
         st.title("✅ Validaciones")
         st.info("🚧 Página de validaciones en desarrollo...")
