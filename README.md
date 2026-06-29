@@ -1,20 +1,22 @@
-# GeoRefIMG - Georreferenciador de Imágenes PNG
+# 🗺️ GeoRef Colaborativo v2
 
-Aplicación de escritorio para georreferenciar imágenes PNG y digitalizar polígonos georreferenciados con exportación a Shapefile y CSV.
+Sistema web de validación colaborativa de polígonos geoespaciales con análisis en tiempo real, anotaciones y control de calidad.
 
-## 👤 Autor
+**Migrado de**: GeoRefIMG (aplicación de escritorio)  
+**Nueva arquitectura**: Streamlit + Python + Azure SQL  
+**Deploy**: Streamlit Cloud  
+
+## 👤 Autor & Desarrollo
 
 **Ricardo Cavieses**  
-📧 cavieses@uabcs.mx  
-🏛️ Universidad Autónoma de Baja California Sur (UABCS)
+📧 rcavieses@gmail.com  
 
 **Desarrollo asistido por IA:**
-- Claude Sonnet (Anthropic)
-- GPT-5 (OpenAI)
+- Claude Haiku 4.5 (Anthropic) - Arquitectura y desarrollo
 
 ## 📄 Licencia
 
-**Código Abierto** - Libre para uso educativo y académico, no comercial.
+**Código Abierto** - MIT License
 
 ## 🚀 Características
 
