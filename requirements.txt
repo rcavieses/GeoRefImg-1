@@ -2,7 +2,7 @@
 streamlit==1.39.0
 streamlit-folium==0.19.0
 
-# Geoespacial
+# Geoespacial (pre-compiled wheels)
 geopandas==0.14.0
 shapely==2.0.2
 folium==0.14.0
@@ -13,8 +13,8 @@ sqlalchemy==2.0.25
 sqlalchemy-utils==0.41.1
 alembic==1.13.1
 
-# Seguridad & Auth
-python-jose[cryptography]==3.3.0
+# Seguridad & Auth (pre-compiled versions)
+python-jose==3.3.0
 passlib==1.7.4
 bcrypt==4.1.2
 pydantic==2.7.0
