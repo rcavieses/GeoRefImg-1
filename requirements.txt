@@ -1,29 +1,28 @@
 ﻿# Core
-streamlit==1.39.0
-streamlit-folium==0.19.0
+streamlit>=1.36.0
+streamlit-folium>=0.18.0
 
-# Geoespacial (pre-compiled wheels)
-geopandas==0.14.0
-shapely==2.0.2
-folium==0.14.0
+# Geoespacial (compatible with Streamlit Cloud)
+geopandas>=0.13.0
+folium>=0.14.0
 
-# BD
-pymssql==2.2.8
-sqlalchemy==2.0.25
-sqlalchemy-utils==0.41.1
-alembic==1.13.1
+# BD (compatible versions)
+pymssql>=2.2.8
+sqlalchemy>=2.0.23
+sqlalchemy-utils>=0.41.0
+alembic>=1.13.0
 
-# Seguridad & Auth (pre-compiled versions)
-python-jose==3.3.0
-passlib==1.7.4
-bcrypt==4.1.2
-pydantic==2.7.0
-pydantic-settings==2.2.1
-python-dotenv==1.0.1
+# Seguridad & Auth
+python-jose[cryptography]>=3.3.0
+passlib>=1.7.4
+bcrypt>=4.1.0
+pydantic>=2.6.0
+pydantic-settings>=2.1.0
+python-dotenv>=1.0.0
 
 # Utils
-pandas==2.1.4
-numpy==1.26.4
+pandas>=2.1.0
+numpy>=1.26.0
 
 # Logging
-sentry-sdk==1.45.0
+sentry-sdk>=1.40.0
