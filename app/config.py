@@ -27,10 +27,13 @@ class Settings(BaseSettings):
     
     @property
     def database_url(self) -> str:
+        if self.app_env == "development":
+            return "sqlite:///./app.db"
+        # Formato: mssql+pymssql://user:password@server/database
+        # pymssql es compatible con Streamlit Cloud
         return (
-            f"mssql+pyodbc://{self.azure_sql_user}:{self.azure_sql_password}"
+            f"mssql+pymssql://{self.azure_sql_user}:{self.azure_sql_password}"
             f"@{self.azure_sql_server}:{self.azure_sql_port}/{self.azure_sql_database}"
-            f"?driver=ODBC+Driver+17+for+SQL+Server"
         )
     
     class Config:

@@ -15,22 +15,31 @@ class GeopackageService:
     def load_geopackage(layer: str = None) -> gpd.GeoDataFrame:
         """
         Carga un geopackage
-        
+
         Args:
             layer: Nombre de la capa (si None, carga la primera)
-            
+
         Returns:
             GeoDataFrame con los polígonos
-            
+
         Raises:
             ValidationException si no existe el archivo
         """
         if not GeopackageService.GEOPACKAGE_PATH.exists():
             raise ValidationException(f"Geopackage no encontrado en {GeopackageService.GEOPACKAGE_PATH}")
-        
+
         try:
             gdf = gpd.read_file(GeopackageService.GEOPACKAGE_PATH, layer=layer)
-            logger.info(f"Geopackage cargado: {len(gdf)} polígonos")
+
+            # Reproyectar a EPSG:4326 si es necesario
+            if gdf.crs and gdf.crs != "EPSG:4326":
+                logger.info(f"Reproyectando de {gdf.crs} a EPSG:4326")
+                gdf = gdf.to_crs("EPSG:4326")
+
+            # Filtrar geometrías válidas
+            gdf = gdf[gdf.geometry.is_valid & ~gdf.geometry.is_empty]
+
+            logger.info(f"Geopackage cargado: {len(gdf)} polígonos en EPSG:4326")
             return gdf
         except Exception as e:
             raise ValidationException(f"Error cargando geopackage: {str(e)}")

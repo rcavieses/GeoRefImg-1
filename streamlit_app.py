@@ -2,7 +2,7 @@
 from app.config import settings
 from app.database import init_db
 from app.ui.session_manager import SessionManager
-from app.ui.pages import auth, home, map, annotations, validations, dashboard
+from app.ui.pages import auth, home, map, dashboard
 
 # Configuración página
 st.set_page_config(
@@ -59,19 +59,38 @@ with st.sidebar:
             "🏠 Inicio": "home",
             "📊 Dashboard": "dashboard",
             "🗺️ Mapa": "map",
-            "✅ Validaciones": "validations",
-            "💬 Anotaciones": "annotations",
         }
 
         # Agregar opción admin si es admin
         if user['role'] == "admin":
             pages["👑 Admin"] = "admin"
 
-        current_page = st.radio(
+        # Obtener página actual guardada en sesión
+        if "page" not in st.session_state:
+            st.session_state.page = "home"
+
+        # Obtener el label de la página actual
+        current_label = "🏠 Inicio"
+        for label, page_name in pages.items():
+            if page_name == st.session_state.page:
+                current_label = label
+                break
+
+        # Obtener índice de la página actual
+        try:
+            current_index = list(pages.keys()).index(current_label)
+        except ValueError:
+            current_index = 0
+
+        current_page_label = st.radio(
             "Selecciona una sección",
             list(pages.keys()),
-            label_visibility="collapsed"
+            label_visibility="collapsed",
+            index=current_index
         )
+
+        # Guardar página seleccionada en sesión
+        st.session_state.page = pages[current_page_label]
 
         st.markdown("---")
 
@@ -117,13 +136,12 @@ else:
     # Obtener página seleccionada del sidebar
     pages = {
         "🏠 Inicio": "home",
+        "📊 Dashboard": "dashboard",
         "🗺️ Mapa": "map",
-        "✅ Validaciones": "validations",
-        "💬 Anotaciones": "annotations",
     }
 
     if user['role'] == "admin":
-        pages["📊 Admin"] = "admin"
+        pages["👑 Admin"] = "admin"
 
     current_page = st.session_state.get("page", "home")
 
@@ -134,10 +152,6 @@ else:
         dashboard.show_dashboard()
     elif current_page == "map":
         map.show_map()
-    elif current_page == "validations":
-        validations.show_validations()
-    elif current_page == "annotations":
-        annotations.show_annotations()
     elif current_page == "admin":
         st.title("👑 Panel de Administración")
         st.info("🚧 Panel admin en desarrollo...")

@@ -50,7 +50,7 @@ class ValidationService:
             validation_type=validation_type,
             score=score,
             notes=notes,
-            metadata=metadata_json
+            validation_metadata=metadata_json
         )
 
         db.add(validation)

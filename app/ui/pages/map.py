@@ -1,30 +1,20 @@
 import streamlit as st
-import pandas as pd
 from app.ui.session_manager import SessionManager
 from app.services.geopackage_service import GeopackageService
-from app.services.drawing_service import DrawingService
-from app.services.polygon_service import PolygonService
-from app.ui.components.map_viewer import show_map_viewer, display_map_stats
-from app.ui.components.polygon_details import show_polygon_details, show_selected_polygons_list
-from app.ui.components.polygon_selector import show_polygon_search_and_filter, filter_features, show_polygons_table, show_polygon_quick_stats
-from app.ui.components.drawing_tools import (
-    show_drawing_mode_selector,
-    show_drawing_instructions,
-    show_polygon_drawing_form,
-    show_polygon_editor_controls,
-    show_polygon_stats_panel
-)
+from app.ui.components.map_viewer import show_map_viewer
+from app.ui.components.polygon_validation_panel import show_polygon_validation_panel, show_selected_polygons_summary
+from app.services.drawn_polygon_service import DrawnPolygonService
 from app.database import SessionLocal
 
 @SessionManager.require_auth
 def show_map():
-    """Página principal del mapa"""
+    """Página integrada: Mapa + Validación + Anotaciones"""
     user = SessionManager.get_current_user()
     user_id = SessionManager.get_user_id()
-    
-    st.title("🗺️ Mapa Interactivo de Polígonos")
-    st.markdown("Visualiza, selecciona y valida polígonos en el mapa")
-    
+
+    st.title("🗺️ Validador de Polígonos Espaciales")
+    st.markdown("Visualiza, valida y anota polígonos directamente en el mapa")
+
     # Inicializar session state
     if "gdf" not in st.session_state:
         with st.spinner("📥 Cargando geopackage..."):
@@ -37,204 +27,228 @@ def show_map():
             except Exception as e:
                 st.error(f"❌ Error cargando geopackage: {e}")
                 return
-    
-    # Estado para polígono seleccionado y modo dibujo
-    if "selected_polygon_id" not in st.session_state:
-        st.session_state.selected_polygon_id = None
 
-    if "selected_ids" not in st.session_state:
-        st.session_state.selected_ids = []
+    # Inicializar estado de selección
+    if "selected_polygon_ids" not in st.session_state:
+        st.session_state.selected_polygon_ids = []
+
+    if "annotations" not in st.session_state:
+        st.session_state.annotations = {}
+
+    if "last_clicked_id" not in st.session_state:
+        st.session_state.last_clicked_id = None
+
+    if "last_click_time" not in st.session_state:
+        st.session_state.last_click_time = 0
 
     if "drawing_mode" not in st.session_state:
-        st.session_state.drawing_mode = None
+        st.session_state.drawing_mode = False
 
-    # Tabs principal
-    tab_map, tab_draw = st.tabs(["🗺️ Ver", "🎨 Dibujar"])
+    if "drawn_polygons" not in st.session_state:
+        st.session_state.drawn_polygons = []
 
-    # ===== TAB MAPA =====
-    with tab_map:
-        # Layout principal: Mapa + Sidebar
-        col_map, col_sidebar = st.columns([3, 1])
-    
-    # ===== MAPA =====
+
+    # Layout: Mapa (izquierda) + Panel de control (derecha)
+    col_map, col_panel = st.columns([2, 1], gap="small")
+
+    # CSS para hacer más denso el panel derecho
+    st.markdown("""
+        <style>
+            .block-container {
+                padding-top: 0.5rem;
+                padding-bottom: 0.5rem;
+            }
+            h2 { margin-top: 0.2rem; margin-bottom: 0.2rem; }
+            h3 { margin-top: 0.15rem; margin-bottom: 0.15rem; }
+            h4 { margin-top: 0.1rem; margin-bottom: 0.1rem; }
+            p { margin-top: 0.1rem; margin-bottom: 0.1rem; }
+            [data-testid="stMarkdownContainer"] {
+                margin-top: 0.1rem;
+                margin-bottom: 0.1rem;
+            }
+            [data-testid="stMetricContainer"] {
+                margin-top: 0.1rem;
+                margin-bottom: 0.1rem;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # ===== MAPA PRINCIPAL =====
     with col_map:
-        st.subheader("Mapa Base")
-        
+        st.subheader("🗺️ Mapa Interactivo")
+
         # Mostrar mapa
+        map_center = (26.0, -111.5)  # Centro de la región Baja California + Golfo
+        map_zoom = 7  # Zoom para ver toda la región
+
         map_data = show_map_viewer(
             geojson_data=st.session_state.geojson,
-            center=st.session_state.center,
-            zoom=10,
-            selected_feature_id=st.session_state.selected_polygon_id,
+            center=map_center,
+            zoom=map_zoom,
+            selected_feature_ids=st.session_state.selected_polygon_ids,
             height=600
         )
-        
-        # Procesar eventos del mapa
-        if map_data and "last_clicked" in map_data:
-            # Información del polígono clickeado
-            st.session_state.selected_polygon_id = map_data["last_clicked"]["properties"].get("id")
-    
-    # ===== SIDEBAR =====
-    with col_sidebar:
-        st.subheader("⚙️ Controles")
-        
-        # Validación de geometrías
+
+        # Procesar clicks en el mapa (solo en modo normal)
+        if not st.session_state.drawing_mode:
+            if map_data and "last_clicked" in map_data and map_data["last_clicked"]:
+                clicked = map_data["last_clicked"]
+                lat = clicked.get("lat")
+                lng = clicked.get("lng")
+
+                if lat is not None and lng is not None:
+                    try:
+                        # Buscar qué polígono contiene este punto
+                        from shapely.geometry import Point
+                        click_point = Point(lng, lat)
+
+                        for idx, row in st.session_state.gdf.iterrows():
+                            if row.geometry.contains(click_point):
+                                polygon_id = idx
+                                # Toggle: agregar si no está, quitar si está
+                                if polygon_id in st.session_state.selected_polygon_ids:
+                                    st.session_state.selected_polygon_ids.remove(polygon_id)
+                                else:
+                                    st.session_state.selected_polygon_ids.append(polygon_id)
+                                st.rerun()
+                                break
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+        else:
+            # En modo dibujo, procesar datos del dibujo
+            if map_data and "all_drawings" in map_data:
+                drawings = map_data.get("all_drawings", [])
+                if drawings:
+                    st.session_state.drawn_polygons = drawings
+
+    # ===== PANEL DE CONTROL DERECHO =====
+    with col_panel:
+        st.subheader("⚙️ Control")
+
+        # Detalles y Validación
+        if st.session_state.selected_polygon_ids:
+            # Mostrar detalles del primer polígono seleccionado
+            selected_id = st.session_state.selected_polygon_ids[0]
+            selected_polygon = GeopackageService.get_polygon_by_id(
+                st.session_state.gdf,
+                selected_id
+            )
+            show_polygon_validation_panel(
+                selected_polygon,
+                selected_id
+            )
+
+            # Mostrar lista de polígonos seleccionados si hay más de uno
+            if len(st.session_state.selected_polygon_ids) > 1:
+                st.divider()
+                st.markdown("**Otros seleccionados:**")
+                for pid in st.session_state.selected_polygon_ids[1:]:
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.caption(f"Polígono #{pid}")
+                    with col2:
+                        if st.button("❌", key=f"remove_{pid}", use_container_width=True):
+                            st.session_state.selected_polygon_ids.remove(pid)
+                            st.rerun()
+        else:
+            st.info("👆 Haz clic en un polígono")
+
+        # Herramientas y Selección
+        st.divider()
+        st.markdown("**🔧 Herramientas**")
+
+        # Modo Dibujo
+        st.markdown("**✏️ Modo Dibujo**")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("✏️ Dibujar" if not st.session_state.drawing_mode else "🛑 Detener",
+                        use_container_width=True):
+                st.session_state.drawing_mode = not st.session_state.drawing_mode
+                st.rerun()
+
+        with col2:
+            if st.button("🗑️ Limpiar", use_container_width=True):
+                st.session_state.drawn_polygons = []
+                st.rerun()
+
+        # Mostrar estado
+        if st.session_state.drawing_mode:
+            st.info("🎨 Modo dibujo activo - seleccionar no funciona")
+        else:
+            st.caption(f"{len(st.session_state.selected_polygon_ids)} polígonos seleccionados")
+
+        # Guardar polígonos dibujados
+        if st.session_state.drawn_polygons:
+            st.divider()
+            st.markdown("**💾 Guardar Polígono**")
+
+            polygon_name = st.text_input(
+                "Nombre del polígono",
+                placeholder="Ej: Nueva zona de protección",
+                key="new_polygon_name"
+            )
+
+            polygon_notes = st.text_area(
+                "Justificación/Notas",
+                placeholder="¿Por qué se creó este polígono?",
+                height=80,
+                key="new_polygon_notes"
+            )
+
+            if st.button("💾 Guardar Polígono", use_container_width=True):
+                if polygon_name.strip() and polygon_notes.strip():
+                    try:
+                        db = SessionLocal()
+
+                        # Obtener datos del polígono dibujado
+                        geojson_data = st.session_state.drawn_polygons[0] if st.session_state.drawn_polygons else None
+
+                        # Guardar en base de datos
+                        DrawnPolygonService.create_drawn_polygon(
+                            db=db,
+                            user_id=user_id,
+                            name=polygon_name,
+                            justification=polygon_notes,
+                            geojson_data=geojson_data
+                        )
+
+                        # También guardar en session_state para visualización inmediata
+                        if "drawn_polygons" not in st.session_state:
+                            st.session_state.drawn_polygons = []
+
+                        st.session_state.drawn_polygons = []
+                        st.session_state.drawing_mode = False
+
+                        st.success(f"✅ Polígono '{polygon_name}' guardado en la base de datos")
+                        st.rerun()
+
+                    except Exception as e:
+                        st.error(f"Error guardando polígono: {str(e)}")
+                    finally:
+                        db.close()
+                else:
+                    st.warning("⚠️ Completa todos los campos")
+
+        # Mostrar resumen de selección múltiple
+        st.divider()
+        if st.session_state.selected_polygon_ids:
+            show_selected_polygons_summary()
+        else:
+            if st.button("🔄 Limpiar Selección", use_container_width=True):
+                st.session_state.selected_polygon_ids = []
+
+        # Información del mapa
+        st.divider()
         if st.button("🔍 Validar Geometrías", use_container_width=True):
             validation = GeopackageService.validate_geometries(st.session_state.gdf)
             st.json(validation)
-        
-        # Info del geopackage
-        with st.expander("ℹ️ Información"):
+
+        with st.expander("ℹ️ Información del Mapa"):
             st.metric("CRS", GeopackageService.get_crs(st.session_state.gdf))
             st.metric("Polígonos", len(st.session_state.gdf))
-            
             col1, col2 = st.columns(2)
             with col1:
-                st.caption(f"Latitud: {st.session_state.bounds['miny']:.2f}°")
+                st.caption(f"Lat: {st.session_state.bounds['miny']:.2f}° a {st.session_state.bounds['maxy']:.2f}°")
             with col2:
-                st.caption(f"Longitud: {st.session_state.bounds['minx']:.2f}°")
-    
-    st.markdown("---")
-    
-        st.markdown("---")
+                st.caption(f"Lon: {st.session_state.bounds['minx']:.2f}° a {st.session_state.bounds['maxx']:.2f}°")
 
-        # ===== SECCIÓN DE BÚSQUEDA Y TABLA =====
-        st.subheader("🔍 Explorar Polígonos")
-
-        # Filtros
-        filters = show_polygon_search_and_filter(st.session_state.geojson["features"])
-
-        # Aplicar filtros
-        filtered_features = filter_features(
-            st.session_state.geojson["features"],
-            search_term=filters["search_term"],
-            sort_by=filters["sort_by"],
-            sort_order=filters["sort_order"]
-        )
-
-        # Mostrar estadísticas
-        show_polygon_quick_stats(filtered_features)
-
-        # Mostrar tabla
-        show_polygons_table(filtered_features)
-
-        st.markdown("---")
-
-        # ===== DETALLES DEL POLÍGONO SELECCIONADO =====
-        if st.session_state.selected_polygon_id is not None:
-            selected_polygon = GeopackageService.get_polygon_by_id(
-                st.session_state.gdf,
-                st.session_state.selected_polygon_id
-            )
-
-            show_polygon_details(selected_polygon, st.session_state.selected_polygon_id)
-
-    # ===== TAB DIBUJAR =====
-    with tab_draw:
-        st.subheader("🎨 Herramientas de Dibujo")
-
-        # Instrucciones
-        show_drawing_instructions()
-
-        st.divider()
-
-        # Modo de dibujo
-        modes = show_drawing_mode_selector()
-
-        st.divider()
-
-        # Formulario según modo
-        db = SessionLocal()
-
-        try:
-            if modes["draw_new"]:
-                st.markdown("### Dibujar Nuevo Polígono")
-                st.info("📍 Haz clic en el mapa para agregar puntos. Doble-clic para terminar.")
-
-                form_data = show_polygon_drawing_form()
-
-                if form_data:
-                    try:
-                        polygon = PolygonService.create_polygon(
-                            db=db,
-                            name=form_data["name"],
-                            geom_wkt="POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))",  # Placeholder
-                            created_by=user_id,
-                            source_type="drawn"
-                        )
-
-                        st.success(f"✅ Polígono #{polygon.id} guardado: {form_data['name']}")
-                        st.balloons()
-
-                    except Exception as e:
-                        st.error(f"❌ Error: {e}")
-
-            elif modes["edit_existing"]:
-                st.markdown("### Editar Polígono")
-
-                polygon_id = st.number_input(
-                    "ID del Polígono a Editar",
-                    min_value=0,
-                    step=1
-                )
-
-                if polygon_id > 0:
-                    show_polygon_editor_controls(polygon_id)
-
-            elif modes["merge_mode"]:
-                st.markdown("### Fusionar Polígonos")
-
-                num_select = st.number_input(
-                    "Cuántos polígonos fusionar",
-                    min_value=2,
-                    max_value=10,
-                    value=2
-                )
-
-                selected_ids = []
-                for i in range(num_select):
-                    pid = st.number_input(f"ID Polígono {i+1}", min_value=0, step=1, key=f"merge_{i}")
-                    if pid > 0:
-                        selected_ids.append(pid)
-
-                if len(selected_ids) >= 2:
-                    try:
-                        wkt_list = [
-                            "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"
-                            for _ in selected_ids
-                        ]
-
-                        merged_wkt = DrawingService.merge_polygons(wkt_list)
-
-                        if merged_wkt:
-                            stats = DrawingService.calculate_polygon_stats(merged_wkt)
-                            show_polygon_stats_panel(stats)
-
-                            st.divider()
-
-                            merge_name = st.text_input("Nombre del Polígono Fusionado")
-
-                            if st.button("💾 Guardar Fusionado", type="primary"):
-                                if merge_name:
-                                    polygon = PolygonService.create_polygon(
-                                        db=db,
-                                        name=merge_name,
-                                        geom_wkt=merged_wkt,
-                                        created_by=user_id,
-                                        source_type="merged"
-                                    )
-
-                                    st.success(f"✅ Polígono fusionado: {merge_name}")
-                                else:
-                                    st.error("Nombre requerido")
-
-                    except Exception as e:
-                        st.error(f"❌ Error: {e}")
-
-        finally:
-            db.close()
-
-    st.markdown("---")
-
-    # ===== FOOTER =====
-    st.caption(f"📍 Sesión de: {user['username']} | {len(st.session_state.geojson['features'])} polígonos disponibles")
