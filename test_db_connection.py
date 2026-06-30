@@ -7,16 +7,21 @@ def test_connection():
     print(f"🔧 Ambiente: {settings.app_env}")
     print(f"📊 Base de datos configurada: {settings.database_url.split('@')[0]}...")
     print()
-    
+
     try:
         with engine.connect() as connection:
             print("✅ Conexión exitosa a la base de datos")
-            
-            # Obtener información de la conexión
-            result = connection.execute("SELECT @@version")
-            version = result.scalar()
-            print(f"📌 SQL Server Version: {version}")
-            
+
+            # Obtener información de la conexión (compatible con pymssql)
+            try:
+                from sqlalchemy import text
+                result = connection.execute(text("SELECT SERVERPROPERTY('ProductVersion') as version"))
+                version = result.scalar()
+                if version:
+                    print(f"📌 SQL Server Version: {version}")
+            except Exception as version_error:
+                print(f"📌 Base de datos conectada (versión no disponible)")
+
             return True
     except Exception as e:
         print(f"❌ Error de conexión:")
