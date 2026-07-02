@@ -117,7 +117,6 @@ def show_map():
                                 else:
                                     # Modo simple: solo uno a la vez
                                     st.session_state.selected_polygon_ids = [polygon_id]
-                                st.rerun()
                                 break
                     except Exception as e:
                         st.error(f"❌ Error: {str(e)}")
@@ -156,7 +155,6 @@ def show_map():
                     with col2:
                         if st.button("❌", key=f"remove_{pid}", use_container_width=True):
                             st.session_state.selected_polygon_ids.remove(pid)
-                            st.rerun()
         else:
             st.info("👆 Haz clic en un polígono")
 
@@ -166,14 +164,11 @@ def show_map():
 
         # Selección de polígonos
         st.markdown("**🖱️ Selección**")
-        multi_select = st.checkbox(
+        st.session_state.multi_select_mode = st.checkbox(
             "Permitir selección múltiple",
             value=st.session_state.multi_select_mode,
             help="Activa para seleccionar varios polígonos a la vez"
         )
-        if multi_select != st.session_state.multi_select_mode:
-            st.session_state.multi_select_mode = multi_select
-            st.rerun()
 
         # Modo Dibujo
         st.markdown("**✏️ Modo Dibujo**")
