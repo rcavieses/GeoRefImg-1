@@ -1,98 +1,126 @@
 import streamlit as st
-import folium
-from folium.plugins import Draw, Fullscreen
-from streamlit_folium import st_folium
+import pydeck as pdk
 import json
+import geopandas as gpd
+from shapely.geometry import shape
 
-def create_map(center: tuple, zoom: int = 10, geojson_data: dict = None, selected_feature_ids: list = None) -> folium.Map:
+
+def geojson_to_pydeck_geojson(geojson_data: dict, selected_ids: list = None) -> dict:
+    """Convierte GeoJSON a formato Pydeck con colores basados en selección"""
+    if selected_ids is None:
+        selected_ids = []
+
+    if not geojson_data or 'features' not in geojson_data:
+        return geojson_data
+
+    colored_features = []
+    for feature in geojson_data.get('features', []):
+        feature_id = feature.get('id')
+        is_selected = feature_id in selected_ids
+
+        if is_selected:
+            feature['properties']['fillColor'] = [255, 165, 0, 200]
+            feature['properties']['lineColor'] = [255, 107, 0, 255]
+            feature['properties']['lineWidth'] = 3
+        else:
+            feature['properties']['fillColor'] = [51, 136, 255, 140]
+            feature['properties']['lineColor'] = [0, 81, 186, 255]
+            feature['properties']['lineWidth'] = 2
+
+        colored_features.append(feature)
+
+    return {
+        'type': 'FeatureCollection',
+        'features': colored_features
+    }
+
+
+def create_pydeck_map(
+    geojson_data: dict,
+    center: tuple,
+    zoom: int = 10,
+    selected_feature_ids: list = None,
+    height: int = 500
+) -> pdk.Deck:
     """
-    Crea mapa Folium con opciones interactivas
+    Crea un mapa Pydeck con polígonos interactivos
 
     Args:
+        geojson_data: GeoJSON con polígonos
         center: Tupla (lat, lng)
         zoom: Nivel de zoom
-        geojson_data: GeoJSON con polígonos
-        selected_feature_ids: Lista de IDs de polígonos seleccionados (para resaltar)
+        selected_feature_ids: IDs de polígonos seleccionados
+        height: Altura del mapa
 
     Returns:
-        Mapa Folium
+        Mapa Pydeck
     """
     if selected_feature_ids is None:
         selected_feature_ids = []
 
-    # Bounds del Golfo de California
-    # Latitud: 20.59° a 31.86°, Longitud: -114.91° a -105.19°
-    min_lat, min_lon = 20.59, -114.91
-    max_lat, max_lon = 31.86, -105.19
+    colored_geojson = geojson_to_pydeck_geojson(geojson_data, selected_feature_ids)
 
-    gulf_bounds = [[min_lat, min_lon], [max_lat, max_lon]]
-
-    m = folium.Map(
-        location=center,
-        zoom_start=zoom,
-        tiles="OpenStreetMap",
-        max_bounds=True
+    geojson_layer = pdk.Layer(
+        'GeoJsonLayer',
+        data=colored_geojson,
+        opacity=0.8,
+        stroked=True,
+        filled=True,
+        extruded=False,
+        wireframe=False,
+        get_fill_color='properties.fillColor',
+        get_line_color='properties.lineColor',
+        get_line_width='properties.lineWidth',
+        pickable=True,
+        auto_highlight=True,
     )
 
-    # Establecer los límites del mapa
-    m.fit_bounds(gulf_bounds)
+    view_state = pdk.ViewState(
+        latitude=center[0],
+        longitude=center[1],
+        zoom=zoom,
+        pitch=0,
+    )
 
-    # Agregar GeoJSON si existe
-    if geojson_data:
-        def style_function(feature):
-            is_selected = feature.get('id') in selected_feature_ids
-            return {
-                'fillColor': '#FFA500' if is_selected else '#3388ff',
-                'color': '#FF6B00' if is_selected else '#0051ba',
-                'weight': 3 if is_selected else 2,
-                'opacity': 1,
-                'fillOpacity': 0.7 if is_selected else 0.5,
+    deck = pdk.Deck(
+        layers=[geojson_layer],
+        initial_view_state=view_state,
+        map_style='mapbox://styles/mapbox/light-v10',
+        tooltip={
+            'html': '<b>Polígono #{id}</b><br/>Click para seleccionar',
+            'style': {
+                'backgroundColor': 'steelblue',
+                'color': 'white',
+                'fontSize': '12px',
+                'padding': '8px'
             }
-
-        # Agregar cada feature sin popups
-        for feature in geojson_data.get('features', []):
-            folium.GeoJson(
-                feature,
-                style_function=style_function,
-                name='Polígonos'
-            ).add_to(m)
-    
-    # Agregar herramientas
-    Draw(
-        export=True,
-        position='topleft',
-        draw_options={
-            'polyline': False,
-            'polygon': True,
-            'rectangle': True,
-            'circle': False,
-            'circlemarker': False,
-            'marker': False,
         }
-    ).add_to(m)
-    
-    Fullscreen().add_to(m)
-    
-    # Layer control
-    folium.LayerControl().add_to(m)
-    
-    return m
+    )
+
+    return deck
 
 
-def show_map_viewer(geojson_data: dict = None, center: tuple = None, zoom: int = 10, selected_feature_ids: list = None, height: int = 500, key: str = None):
+def show_map_viewer(
+    geojson_data: dict = None,
+    center: tuple = None,
+    zoom: int = 10,
+    selected_feature_ids: list = None,
+    height: int = 500,
+    key: str = None
+):
     """
-    Muestra mapa interactivo en Streamlit
+    Muestra mapa interactivo Pydeck en Streamlit
 
     Args:
         geojson_data: GeoJSON con polígonos
-        center: Tupla (lat, lng) para centro del mapa
+        center: Tupla (lat, lng)
         zoom: Nivel de zoom
-        selected_feature_id: ID del polígono a resaltar
-        height: Altura del mapa en píxeles
-        key: Clave única para el mapa (evita recreaciones innecesarias)
+        selected_feature_ids: Lista de IDs seleccionados
+        height: Altura del mapa
+        key: Clave para el componente
 
     Returns:
-        Datos del mapa (clicks, dibujos, etc)
+        None (el mapa se renderiza directamente)
     """
     if center is None:
         center = [24.5, -110.3]
@@ -100,47 +128,6 @@ def show_map_viewer(geojson_data: dict = None, center: tuple = None, zoom: int =
     if selected_feature_ids is None:
         selected_feature_ids = []
 
-    m = create_map(center, zoom, geojson_data, selected_feature_ids)
+    deck = create_pydeck_map(geojson_data, center, zoom, selected_feature_ids, height)
 
-    map_data = st_folium(m, width=None, height=height, key=key)
-
-    return map_data
-
-
-def display_map_stats(geojson_data: dict, bounds: dict):
-    """Muestra estadísticas del mapa"""
-    if not geojson_data:
-        return
-
-    # CSS para reducir tamaño de texto en métricas
-    st.markdown("""
-        <style>
-            [data-testid="metric-container"] {
-                font-size: 11px !important;
-            }
-            [data-testid="metric-container"] [data-testid="stMetricValue"] {
-                font-size: 12px !important;
-            }
-            [data-testid="metric-container"] [data-testid="stMetricLabel"] {
-                font-size: 10px !important;
-            }
-        </style>
-    """, unsafe_allow_html=True)
-
-    col1, col2, col3, col4 = st.columns(4)
-
-    num_features = len(geojson_data.get('features', []))
-
-    with col1:
-        st.metric("Polígonos", num_features)
-
-    with col2:
-        st.metric("Lat", f"{bounds['miny']:.2f}° - {bounds['maxy']:.2f}°")
-
-    with col3:
-        st.metric("Lon", f"{bounds['minx']:.2f}° - {bounds['maxx']:.2f}°")
-
-    with col4:
-        center_lat = (bounds['miny'] + bounds['maxy']) / 2
-        center_lng = (bounds['minx'] + bounds['maxx']) / 2
-        st.metric("Centro", f"({center_lat:.1f},{center_lng:.1f})")
+    st.pydeck_chart(deck, use_container_width=True, height=height)

@@ -1,6 +1,6 @@
 ﻿# Core
 streamlit>=1.36.0
-streamlit-folium>=0.18.0
+pydeck>=0.8.0
 
 # Geoespacial (compatible with Streamlit Cloud)
 geopandas>=0.13.0

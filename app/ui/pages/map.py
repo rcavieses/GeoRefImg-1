@@ -32,14 +32,6 @@ def show_map():
         st.session_state.selected_polygon_ids = []
     if "annotations" not in st.session_state:
         st.session_state.annotations = {}
-    if "last_clicked_id" not in st.session_state:
-        st.session_state.last_clicked_id = None
-    if "last_click_time" not in st.session_state:
-        st.session_state.last_click_time = 0
-    if "drawing_mode" not in st.session_state:
-        st.session_state.drawing_mode = False
-    if "drawn_polygons" not in st.session_state:
-        st.session_state.drawn_polygons = []
     if "multi_select_mode" not in st.session_state:
         st.session_state.multi_select_mode = False
 
@@ -73,7 +65,7 @@ def show_map():
         map_center = (26.0, -111.5)
         map_zoom = 7
 
-        map_data = show_map_viewer(
+        show_map_viewer(
             geojson_data=st.session_state.geojson,
             center=map_center,
             zoom=map_zoom,
@@ -82,35 +74,47 @@ def show_map():
             key="main_map"
         )
 
-        if not st.session_state.drawing_mode:
-            if map_data and "last_clicked" in map_data and map_data["last_clicked"]:
-                clicked = map_data["last_clicked"]
-                lat = clicked.get("lat")
-                lng = clicked.get("lng")
+        # Selector de polígonos
+        st.markdown("**🔍 Seleccionar Polígono**")
+        col_search, col_list = st.columns([1, 1])
 
-                if lat is not None and lng is not None:
-                    try:
-                        from shapely.geometry import Point
-                        click_point = Point(lng, lat)
+        with col_search:
+            search_id = st.text_input(
+                "Buscar por ID",
+                placeholder="Ej: 1, 2, 3...",
+                help="Ingresa el ID del polígono"
+            )
+            if search_id.strip():
+                try:
+                    pid = int(search_id.strip())
+                    if pid in st.session_state.gdf.index:
+                        if st.button("✅ Seleccionar", use_container_width=True):
+                            if st.session_state.multi_select_mode:
+                                if pid not in st.session_state.selected_polygon_ids:
+                                    st.session_state.selected_polygon_ids.append(pid)
+                            else:
+                                st.session_state.selected_polygon_ids = [pid]
+                    else:
+                        st.warning(f"⚠️ Polígono #{pid} no existe")
+                except ValueError:
+                    st.error("❌ Ingresa un número válido")
 
-                        for idx, row in st.session_state.gdf.iterrows():
-                            if row.geometry.contains(click_point):
-                                polygon_id = idx
-                                if st.session_state.multi_select_mode:
-                                    if polygon_id in st.session_state.selected_polygon_ids:
-                                        st.session_state.selected_polygon_ids.remove(polygon_id)
-                                    else:
-                                        st.session_state.selected_polygon_ids.append(polygon_id)
-                                else:
-                                    st.session_state.selected_polygon_ids = [polygon_id]
-                                break
-                    except Exception as e:
-                        st.error(f"❌ Error: {str(e)}")
-        else:
-            if map_data and "all_drawings" in map_data:
-                drawings = map_data.get("all_drawings", [])
-                if drawings:
-                    st.session_state.drawn_polygons = drawings
+        with col_list:
+            st.markdown("**O elige de la lista:**")
+            polygon_options = {f"Polígono #{idx}": idx for idx in st.session_state.gdf.index[:20]}
+            selected = st.selectbox(
+                "Polígonos disponibles",
+                options=list(polygon_options.keys()),
+                label_visibility="collapsed"
+            )
+            if selected:
+                pid = polygon_options[selected]
+                if st.button("➕ Agregar", use_container_width=True):
+                    if st.session_state.multi_select_mode:
+                        if pid not in st.session_state.selected_polygon_ids:
+                            st.session_state.selected_polygon_ids.append(pid)
+                    else:
+                        st.session_state.selected_polygon_ids = [pid]
 
         # ===== HERRAMIENTAS INFERIORES =====
         st.divider()
@@ -126,75 +130,28 @@ def show_map():
             )
 
         with col_tools2:
-            st.markdown("**✏️ Modo Dibujo**")
-            col_draw1, col_draw2 = st.columns(2)
-            with col_draw1:
-                if st.button("✏️ Dibujar" if not st.session_state.drawing_mode else "🛑 Detener",
-                            use_container_width=True):
-                    st.session_state.drawing_mode = not st.session_state.drawing_mode
-                    st.rerun()
-
-            with col_draw2:
-                if st.button("🗑️ Limpiar", use_container_width=True):
-                    st.session_state.drawn_polygons = []
-                    st.rerun()
-
-        # Estado
-        if st.session_state.drawing_mode:
-            st.info("🎨 Modo dibujo activo - seleccionar no funciona")
-        else:
-            count = len(st.session_state.selected_polygon_ids)
-            if count == 0:
-                st.caption("0 polígonos seleccionados")
-            elif count == 1:
-                st.caption("1 polígono seleccionado")
-            else:
-                st.caption(f"{count} polígonos seleccionados")
-
-        # Guardar polígonos dibujados
-        if st.session_state.drawn_polygons:
-            st.divider()
-            st.markdown("**💾 Guardar Polígono**")
-
-            polygon_name = st.text_input(
-                "Nombre del polígono",
-                placeholder="Ej: Nueva zona de protección",
-                key="new_polygon_name"
-            )
-
-            polygon_notes = st.text_area(
-                "Justificación/Notas",
-                placeholder="¿Por qué se creó este polígono?",
-                height=80,
-                key="new_polygon_notes"
-            )
-
-            if st.button("💾 Guardar Polígono", use_container_width=True):
-                if polygon_name.strip() and polygon_notes.strip():
-                    try:
-                        db = SessionLocal()
-                        geojson_data = st.session_state.drawn_polygons[0] if st.session_state.drawn_polygons else None
-
-                        DrawnPolygonService.create_drawn_polygon(
-                            db=db,
-                            user_id=user_id,
-                            name=polygon_name,
-                            justification=polygon_notes,
-                            geojson_data=geojson_data
-                        )
-
-                        st.session_state.drawn_polygons = []
-                        st.session_state.drawing_mode = False
-
-                        st.success(f"✅ Polígono '{polygon_name}' guardado en la base de datos")
-                        st.rerun()
-
-                    except Exception as e:
-                        st.error(f"Error guardando polígono: {str(e)}")
-                    finally:
-                        db.close()
+            st.markdown("**📊 Análisis**")
+            if st.button("📈 Ver Estadísticas", use_container_width=True):
+                st.info("📊 Características del polígono seleccionado")
+                if st.session_state.selected_polygon_ids:
+                    selected_id = st.session_state.selected_polygon_ids[0]
+                    polygon = st.session_state.gdf.iloc[selected_id]
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Área", f"{polygon.geometry.area:.2f} m²")
+                    with col2:
+                        st.metric("Perímetro", f"{polygon.geometry.length:.2f} m")
                 else:
-                    st.warning("⚠️ Completa todos los campos")
+                    st.warning("⚠️ Selecciona un polígono primero")
+
+        # Estado de selección
+        count = len(st.session_state.selected_polygon_ids)
+        if count == 0:
+            st.caption("0 polígonos seleccionados")
+        elif count == 1:
+            st.caption("1 polígono seleccionado")
+        else:
+            st.caption(f"{count} polígonos seleccionados")
 
         # Validación y análisis
         st.divider()
