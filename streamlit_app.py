@@ -35,7 +35,7 @@ st.markdown("""
 
 # ===== SIDEBAR =====
 with st.sidebar:
-    st.title("🗺️ GeoRef Colaborativo")
+    st.title("🗺️ ATLANTIS ")
     st.markdown("---")
 
     if SessionManager.is_authenticated():

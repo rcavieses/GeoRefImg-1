@@ -79,31 +79,31 @@ def create_map(center: tuple, zoom: int = 10, geojson_data: dict = None, selecte
     return m
 
 
-def show_map_viewer(geojson_data: dict = None, center: tuple = None, zoom: int = 10, selected_feature_ids: list = None, height: int = 500):
+def show_map_viewer(geojson_data: dict = None, center: tuple = None, zoom: int = 10, selected_feature_ids: list = None, height: int = 500, key: str = None):
     """
     Muestra mapa interactivo en Streamlit
-    
+
     Args:
         geojson_data: GeoJSON con polígonos
         center: Tupla (lat, lng) para centro del mapa
         zoom: Nivel de zoom
         selected_feature_id: ID del polígono a resaltar
         height: Altura del mapa en píxeles
-        
+        key: Clave única para el mapa (evita recreaciones innecesarias)
+
     Returns:
         Datos del mapa (clicks, dibujos, etc)
     """
     if center is None:
-        center = [24.5, -110.3]  # Centro de Baja California Sur por defecto
+        center = [24.5, -110.3]
 
     if selected_feature_ids is None:
         selected_feature_ids = []
 
     m = create_map(center, zoom, geojson_data, selected_feature_ids)
-    
-    # Mostrar mapa y capturar eventos (width=None para responsivo)
-    map_data = st_folium(m, width=None, height=height)
-    
+
+    map_data = st_folium(m, width=None, height=height, key=key)
+
     return map_data
 
 

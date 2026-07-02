@@ -7,181 +7,6 @@ from app.services.drawn_polygon_service import DrawnPolygonService
 from app.database import SessionLocal
 
 
-@st.fragment
-def _render_map():
-    """Renderiza el mapa en fragmento separado (no se recarga con cada selección)"""
-    map_center = (26.0, -111.5)
-    map_zoom = 7
-
-    map_data = show_map_viewer(
-        geojson_data=st.session_state.geojson,
-        center=map_center,
-        zoom=map_zoom,
-        selected_feature_ids=st.session_state.selected_polygon_ids,
-        height=600
-    )
-    return map_data
-
-
-def _handle_map_interactions(map_data):
-    """Procesa clicks en el mapa sin recargar"""
-    if not st.session_state.drawing_mode:
-        if map_data and "last_clicked" in map_data and map_data["last_clicked"]:
-            clicked = map_data["last_clicked"]
-            lat = clicked.get("lat")
-            lng = clicked.get("lng")
-
-            if lat is not None and lng is not None:
-                try:
-                    from shapely.geometry import Point
-                    click_point = Point(lng, lat)
-
-                    for idx, row in st.session_state.gdf.iterrows():
-                        if row.geometry.contains(click_point):
-                            polygon_id = idx
-                            if st.session_state.multi_select_mode:
-                                if polygon_id in st.session_state.selected_polygon_ids:
-                                    st.session_state.selected_polygon_ids.remove(polygon_id)
-                                else:
-                                    st.session_state.selected_polygon_ids.append(polygon_id)
-                            else:
-                                st.session_state.selected_polygon_ids = [polygon_id]
-                            break
-                except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
-    else:
-        if map_data and "all_drawings" in map_data:
-            drawings = map_data.get("all_drawings", [])
-            if drawings:
-                st.session_state.drawn_polygons = drawings
-
-
-@st.fragment
-def _render_control_panel(user_id):
-    """Panel de control en fragmento separado"""
-    st.subheader("⚙️ Control")
-
-    if st.session_state.selected_polygon_ids:
-        selected_id = st.session_state.selected_polygon_ids[0]
-        selected_polygon = GeopackageService.get_polygon_by_id(
-            st.session_state.gdf,
-            selected_id
-        )
-        show_polygon_validation_panel(selected_polygon, selected_id)
-
-        if st.session_state.multi_select_mode and len(st.session_state.selected_polygon_ids) > 1:
-            st.divider()
-            st.markdown("**Otros seleccionados:**")
-            for pid in st.session_state.selected_polygon_ids[1:]:
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    st.caption(f"Polígono #{pid}")
-                with col2:
-                    if st.button("❌", key=f"remove_{pid}", use_container_width=True):
-                        st.session_state.selected_polygon_ids.remove(pid)
-    else:
-        st.info("👆 Haz clic en un polígono")
-
-    st.divider()
-    st.markdown("**🔧 Herramientas**")
-
-    st.markdown("**🖱️ Selección**")
-    st.session_state.multi_select_mode = st.checkbox(
-        "Permitir selección múltiple",
-        value=st.session_state.multi_select_mode,
-        help="Activa para seleccionar varios polígonos a la vez"
-    )
-
-    st.markdown("**✏️ Modo Dibujo**")
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("✏️ Dibujar" if not st.session_state.drawing_mode else "🛑 Detener",
-                    use_container_width=True):
-            st.session_state.drawing_mode = not st.session_state.drawing_mode
-            st.rerun()
-
-    with col2:
-        if st.button("🗑️ Limpiar", use_container_width=True):
-            st.session_state.drawn_polygons = []
-            st.rerun()
-
-    if st.session_state.drawing_mode:
-        st.info("🎨 Modo dibujo activo - seleccionar no funciona")
-    else:
-        count = len(st.session_state.selected_polygon_ids)
-        if count == 0:
-            st.caption("0 polígonos seleccionados")
-        elif count == 1:
-            st.caption("1 polígono seleccionado")
-        else:
-            st.caption(f"{count} polígonos seleccionados")
-
-    if st.session_state.drawn_polygons:
-        st.divider()
-        st.markdown("**💾 Guardar Polígono**")
-
-        polygon_name = st.text_input(
-            "Nombre del polígono",
-            placeholder="Ej: Nueva zona de protección",
-            key="new_polygon_name"
-        )
-
-        polygon_notes = st.text_area(
-            "Justificación/Notas",
-            placeholder="¿Por qué se creó este polígono?",
-            height=80,
-            key="new_polygon_notes"
-        )
-
-        if st.button("💾 Guardar Polígono", use_container_width=True):
-            if polygon_name.strip() and polygon_notes.strip():
-                try:
-                    db = SessionLocal()
-                    geojson_data = st.session_state.drawn_polygons[0] if st.session_state.drawn_polygons else None
-
-                    DrawnPolygonService.create_drawn_polygon(
-                        db=db,
-                        user_id=user_id,
-                        name=polygon_name,
-                        justification=polygon_notes,
-                        geojson_data=geojson_data
-                    )
-
-                    st.session_state.drawn_polygons = []
-                    st.session_state.drawing_mode = False
-
-                    st.success(f"✅ Polígono '{polygon_name}' guardado en la base de datos")
-                    st.rerun()
-
-                except Exception as e:
-                    st.error(f"Error guardando polígono: {str(e)}")
-                finally:
-                    db.close()
-            else:
-                st.warning("⚠️ Completa todos los campos")
-
-    st.divider()
-    if st.session_state.selected_polygon_ids:
-        show_selected_polygons_summary()
-    else:
-        if st.button("🔄 Limpiar Selección", use_container_width=True):
-            st.session_state.selected_polygon_ids = []
-
-    st.divider()
-    if st.button("🔍 Validar Geometrías", use_container_width=True):
-        validation = GeopackageService.validate_geometries(st.session_state.gdf)
-        st.json(validation)
-
-    with st.expander("ℹ️ Información del Mapa"):
-        st.metric("CRS", GeopackageService.get_crs(st.session_state.gdf))
-        st.metric("Polígonos", len(st.session_state.gdf))
-        col1, col2 = st.columns(2)
-        with col1:
-            st.caption(f"Lat: {st.session_state.bounds['miny']:.2f}° a {st.session_state.bounds['maxy']:.2f}°")
-        with col2:
-            st.caption(f"Lon: {st.session_state.bounds['minx']:.2f}° a {st.session_state.bounds['maxx']:.2f}°")
-
-
 @SessionManager.require_auth
 def show_map():
     """Página integrada: Mapa + Validación + Anotaciones"""
@@ -243,9 +68,168 @@ def show_map():
 
     with col_map:
         st.subheader("🗺️ Mapa Interactivo")
-        map_data = _render_map()
 
-    _handle_map_interactions(map_data)
+        map_center = (26.0, -111.5)
+        map_zoom = 7
+
+        map_data = show_map_viewer(
+            geojson_data=st.session_state.geojson,
+            center=map_center,
+            zoom=map_zoom,
+            selected_feature_ids=st.session_state.selected_polygon_ids,
+            height=600,
+            key="main_map"
+        )
+
+        if not st.session_state.drawing_mode:
+            if map_data and "last_clicked" in map_data and map_data["last_clicked"]:
+                clicked = map_data["last_clicked"]
+                lat = clicked.get("lat")
+                lng = clicked.get("lng")
+
+                if lat is not None and lng is not None:
+                    try:
+                        from shapely.geometry import Point
+                        click_point = Point(lng, lat)
+
+                        for idx, row in st.session_state.gdf.iterrows():
+                            if row.geometry.contains(click_point):
+                                polygon_id = idx
+                                if st.session_state.multi_select_mode:
+                                    if polygon_id in st.session_state.selected_polygon_ids:
+                                        st.session_state.selected_polygon_ids.remove(polygon_id)
+                                    else:
+                                        st.session_state.selected_polygon_ids.append(polygon_id)
+                                else:
+                                    st.session_state.selected_polygon_ids = [polygon_id]
+                                break
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+        else:
+            if map_data and "all_drawings" in map_data:
+                drawings = map_data.get("all_drawings", [])
+                if drawings:
+                    st.session_state.drawn_polygons = drawings
 
     with col_panel:
-        _render_control_panel(user_id)
+        st.subheader("⚙️ Control")
+
+        if st.session_state.selected_polygon_ids:
+            selected_id = st.session_state.selected_polygon_ids[0]
+            selected_polygon = GeopackageService.get_polygon_by_id(
+                st.session_state.gdf,
+                selected_id
+            )
+            show_polygon_validation_panel(selected_polygon, selected_id)
+
+            if st.session_state.multi_select_mode and len(st.session_state.selected_polygon_ids) > 1:
+                st.divider()
+                st.markdown("**Otros seleccionados:**")
+                for pid in st.session_state.selected_polygon_ids[1:]:
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.caption(f"Polígono #{pid}")
+                    with col2:
+                        if st.button("❌", key=f"remove_{pid}", use_container_width=True):
+                            st.session_state.selected_polygon_ids.remove(pid)
+        else:
+            st.info("👆 Haz clic en un polígono")
+
+        st.divider()
+        st.markdown("**🔧 Herramientas**")
+
+        st.markdown("**🖱️ Selección**")
+        st.session_state.multi_select_mode = st.checkbox(
+            "Permitir selección múltiple",
+            value=st.session_state.multi_select_mode,
+            help="Activa para seleccionar varios polígonos a la vez"
+        )
+
+        st.markdown("**✏️ Modo Dibujo**")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("✏️ Dibujar" if not st.session_state.drawing_mode else "🛑 Detener",
+                        use_container_width=True):
+                st.session_state.drawing_mode = not st.session_state.drawing_mode
+                st.rerun()
+
+        with col2:
+            if st.button("🗑️ Limpiar", use_container_width=True):
+                st.session_state.drawn_polygons = []
+                st.rerun()
+
+        if st.session_state.drawing_mode:
+            st.info("🎨 Modo dibujo activo - seleccionar no funciona")
+        else:
+            count = len(st.session_state.selected_polygon_ids)
+            if count == 0:
+                st.caption("0 polígonos seleccionados")
+            elif count == 1:
+                st.caption("1 polígono seleccionado")
+            else:
+                st.caption(f"{count} polígonos seleccionados")
+
+        if st.session_state.drawn_polygons:
+            st.divider()
+            st.markdown("**💾 Guardar Polígono**")
+
+            polygon_name = st.text_input(
+                "Nombre del polígono",
+                placeholder="Ej: Nueva zona de protección",
+                key="new_polygon_name"
+            )
+
+            polygon_notes = st.text_area(
+                "Justificación/Notas",
+                placeholder="¿Por qué se creó este polígono?",
+                height=80,
+                key="new_polygon_notes"
+            )
+
+            if st.button("💾 Guardar Polígono", use_container_width=True):
+                if polygon_name.strip() and polygon_notes.strip():
+                    try:
+                        db = SessionLocal()
+                        geojson_data = st.session_state.drawn_polygons[0] if st.session_state.drawn_polygons else None
+
+                        DrawnPolygonService.create_drawn_polygon(
+                            db=db,
+                            user_id=user_id,
+                            name=polygon_name,
+                            justification=polygon_notes,
+                            geojson_data=geojson_data
+                        )
+
+                        st.session_state.drawn_polygons = []
+                        st.session_state.drawing_mode = False
+
+                        st.success(f"✅ Polígono '{polygon_name}' guardado en la base de datos")
+                        st.rerun()
+
+                    except Exception as e:
+                        st.error(f"Error guardando polígono: {str(e)}")
+                    finally:
+                        db.close()
+                else:
+                    st.warning("⚠️ Completa todos los campos")
+
+        st.divider()
+        if st.session_state.selected_polygon_ids:
+            show_selected_polygons_summary()
+        else:
+            if st.button("🔄 Limpiar Selección", use_container_width=True):
+                st.session_state.selected_polygon_ids = []
+
+        st.divider()
+        if st.button("🔍 Validar Geometrías", use_container_width=True):
+            validation = GeopackageService.validate_geometries(st.session_state.gdf)
+            st.json(validation)
+
+        with st.expander("ℹ️ Información del Mapa"):
+            st.metric("CRS", GeopackageService.get_crs(st.session_state.gdf))
+            st.metric("Polígonos", len(st.session_state.gdf))
+            col1, col2 = st.columns(2)
+            with col1:
+                st.caption(f"Lat: {st.session_state.bounds['miny']:.2f}° a {st.session_state.bounds['maxy']:.2f}°")
+            with col2:
+                st.caption(f"Lon: {st.session_state.bounds['minx']:.2f}° a {st.session_state.bounds['maxx']:.2f}°")
