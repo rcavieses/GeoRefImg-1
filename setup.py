@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script de setup para GeoRef Colaborativo
+Script de setup para Atlantis Poligons
 
 Ejecutar: python setup.py
 """
@@ -97,7 +97,7 @@ def check_env():
 
 def main():
     print("\n" + "="*50)
-    print("🗺️  GeoRef Colaborativo - Setup Inicial")
+    print("🌊 Atlantis Poligons - Setup Inicial")
     print("="*50)
     
     # 1. Verificar .env

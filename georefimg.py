@@ -85,7 +85,7 @@ class DigitizedPolygon:
 class GeoRefApp:
     def __init__(self, root: tk.Tk):
         self.root = root
-        root.title("Georreferenciar PNG y Digitalizar Polígonos")
+        root.title("Atlantis Poligons - Georreferenciar PNG y Digitalizar Polígonos")
         self.image_path: Optional[str] = None
         self.img_array: Optional[np.ndarray] = None
         self.control_points: List[ControlPoint] = []

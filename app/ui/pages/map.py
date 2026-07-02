@@ -47,6 +47,9 @@ def show_map():
     if "drawn_polygons" not in st.session_state:
         st.session_state.drawn_polygons = []
 
+    if "multi_select_mode" not in st.session_state:
+        st.session_state.multi_select_mode = False
+
 
     # Layout: Mapa (izquierda) + Panel de control (derecha)
     col_map, col_panel = st.columns([2, 1], gap="small")
@@ -105,11 +108,15 @@ def show_map():
                         for idx, row in st.session_state.gdf.iterrows():
                             if row.geometry.contains(click_point):
                                 polygon_id = idx
-                                # Toggle: agregar si no está, quitar si está
-                                if polygon_id in st.session_state.selected_polygon_ids:
-                                    st.session_state.selected_polygon_ids.remove(polygon_id)
+                                if st.session_state.multi_select_mode:
+                                    # Modo múltiple: toggle
+                                    if polygon_id in st.session_state.selected_polygon_ids:
+                                        st.session_state.selected_polygon_ids.remove(polygon_id)
+                                    else:
+                                        st.session_state.selected_polygon_ids.append(polygon_id)
                                 else:
-                                    st.session_state.selected_polygon_ids.append(polygon_id)
+                                    # Modo simple: solo uno a la vez
+                                    st.session_state.selected_polygon_ids = [polygon_id]
                                 st.rerun()
                                 break
                     except Exception as e:
@@ -138,8 +145,8 @@ def show_map():
                 selected_id
             )
 
-            # Mostrar lista de polígonos seleccionados si hay más de uno
-            if len(st.session_state.selected_polygon_ids) > 1:
+            # Mostrar lista de polígonos seleccionados si hay más de uno y está en modo multi-select
+            if st.session_state.multi_select_mode and len(st.session_state.selected_polygon_ids) > 1:
                 st.divider()
                 st.markdown("**Otros seleccionados:**")
                 for pid in st.session_state.selected_polygon_ids[1:]:
@@ -156,6 +163,17 @@ def show_map():
         # Herramientas y Selección
         st.divider()
         st.markdown("**🔧 Herramientas**")
+
+        # Selección de polígonos
+        st.markdown("**🖱️ Selección**")
+        multi_select = st.checkbox(
+            "Permitir selección múltiple",
+            value=st.session_state.multi_select_mode,
+            help="Activa para seleccionar varios polígonos a la vez"
+        )
+        if multi_select != st.session_state.multi_select_mode:
+            st.session_state.multi_select_mode = multi_select
+            st.rerun()
 
         # Modo Dibujo
         st.markdown("**✏️ Modo Dibujo**")
@@ -175,7 +193,13 @@ def show_map():
         if st.session_state.drawing_mode:
             st.info("🎨 Modo dibujo activo - seleccionar no funciona")
         else:
-            st.caption(f"{len(st.session_state.selected_polygon_ids)} polígonos seleccionados")
+            count = len(st.session_state.selected_polygon_ids)
+            if count == 0:
+                st.caption("0 polígonos seleccionados")
+            elif count == 1:
+                st.caption("1 polígono seleccionado")
+            else:
+                st.caption(f"{count} polígonos seleccionados")
 
         # Guardar polígonos dibujados
         if st.session_state.drawn_polygons:

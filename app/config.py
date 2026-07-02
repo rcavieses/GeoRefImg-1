@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     )
 
     # App
-    app_name: str = os.getenv("APP_NAME", "GeoRef Colaborativo")
+    app_name: str = os.getenv("APP_NAME", "Atlantis Poligons")
     app_env: str = os.getenv("APP_ENV", "development")
     debug: bool = os.getenv("APP_DEBUG", "false").lower() in ("true", "1", "yes")
 

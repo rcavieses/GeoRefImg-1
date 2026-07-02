@@ -145,7 +145,7 @@ def show_auth():
     col1, col2, col3 = st.columns([1, 2, 1])
     
     with col2:
-        st.title("🗺️ GeoRef Colaborativo")
+        st.title("🗺️ Atlantis Poligons")
         st.markdown("---")
         
         # Tabs para login y register
@@ -159,7 +159,7 @@ def show_auth():
         
         st.markdown("---")
         st.markdown("""
-            ### Bienvenido a GeoRef Colaborativo
+            ### Bienvenido a Atlantis Poligons
             
             **Sistema de validación colaborativa de polígonos geoespaciales**
             
