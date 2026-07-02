@@ -43,8 +43,6 @@ def show_map():
     if "multi_select_mode" not in st.session_state:
         st.session_state.multi_select_mode = False
 
-    col_map, col_panel = st.columns([2, 1], gap="small")
-
     st.markdown("""
         <style>
             .block-container {
@@ -66,7 +64,10 @@ def show_map():
         </style>
     """, unsafe_allow_html=True)
 
-    with col_map:
+    col_left, col_right = st.columns([2, 1], gap="small")
+
+    # ===== COLUMNA IZQUIERDA: MAPA + HERRAMIENTAS =====
+    with col_left:
         st.subheader("🗺️ Mapa Interactivo")
 
         map_center = (26.0, -111.5)
@@ -77,7 +78,7 @@ def show_map():
             center=map_center,
             zoom=map_zoom,
             selected_feature_ids=st.session_state.selected_polygon_ids,
-            height=600,
+            height=500,
             key="main_map"
         )
 
@@ -111,53 +112,34 @@ def show_map():
                 if drawings:
                     st.session_state.drawn_polygons = drawings
 
-    with col_panel:
-        st.subheader("⚙️ Control")
-
-        if st.session_state.selected_polygon_ids:
-            selected_id = st.session_state.selected_polygon_ids[0]
-            selected_polygon = GeopackageService.get_polygon_by_id(
-                st.session_state.gdf,
-                selected_id
-            )
-            show_polygon_validation_panel(selected_polygon, selected_id)
-
-            if st.session_state.multi_select_mode and len(st.session_state.selected_polygon_ids) > 1:
-                st.divider()
-                st.markdown("**Otros seleccionados:**")
-                for pid in st.session_state.selected_polygon_ids[1:]:
-                    col1, col2 = st.columns([3, 1])
-                    with col1:
-                        st.caption(f"Polígono #{pid}")
-                    with col2:
-                        if st.button("❌", key=f"remove_{pid}", use_container_width=True):
-                            st.session_state.selected_polygon_ids.remove(pid)
-        else:
-            st.info("👆 Haz clic en un polígono")
-
+        # ===== HERRAMIENTAS INFERIORES =====
         st.divider()
         st.markdown("**🔧 Herramientas**")
 
-        st.markdown("**🖱️ Selección**")
-        st.session_state.multi_select_mode = st.checkbox(
-            "Permitir selección múltiple",
-            value=st.session_state.multi_select_mode,
-            help="Activa para seleccionar varios polígonos a la vez"
-        )
+        col_tools1, col_tools2 = st.columns(2)
+        with col_tools1:
+            st.markdown("**🖱️ Selección**")
+            st.session_state.multi_select_mode = st.checkbox(
+                "Permitir selección múltiple",
+                value=st.session_state.multi_select_mode,
+                help="Activa para seleccionar varios polígonos a la vez"
+            )
 
-        st.markdown("**✏️ Modo Dibujo**")
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("✏️ Dibujar" if not st.session_state.drawing_mode else "🛑 Detener",
-                        use_container_width=True):
-                st.session_state.drawing_mode = not st.session_state.drawing_mode
-                st.rerun()
+        with col_tools2:
+            st.markdown("**✏️ Modo Dibujo**")
+            col_draw1, col_draw2 = st.columns(2)
+            with col_draw1:
+                if st.button("✏️ Dibujar" if not st.session_state.drawing_mode else "🛑 Detener",
+                            use_container_width=True):
+                    st.session_state.drawing_mode = not st.session_state.drawing_mode
+                    st.rerun()
 
-        with col2:
-            if st.button("🗑️ Limpiar", use_container_width=True):
-                st.session_state.drawn_polygons = []
-                st.rerun()
+            with col_draw2:
+                if st.button("🗑️ Limpiar", use_container_width=True):
+                    st.session_state.drawn_polygons = []
+                    st.rerun()
 
+        # Estado
         if st.session_state.drawing_mode:
             st.info("🎨 Modo dibujo activo - seleccionar no funciona")
         else:
@@ -169,6 +151,7 @@ def show_map():
             else:
                 st.caption(f"{count} polígonos seleccionados")
 
+        # Guardar polígonos dibujados
         if st.session_state.drawn_polygons:
             st.divider()
             st.markdown("**💾 Guardar Polígono**")
@@ -213,17 +196,18 @@ def show_map():
                 else:
                     st.warning("⚠️ Completa todos los campos")
 
+        # Validación y análisis
         st.divider()
-        if st.session_state.selected_polygon_ids:
-            show_selected_polygons_summary()
-        else:
-            if st.button("🔄 Limpiar Selección", use_container_width=True):
-                st.session_state.selected_polygon_ids = []
+        col_val1, col_val2 = st.columns(2)
+        with col_val1:
+            if st.button("🔍 Validar Geometrías", use_container_width=True):
+                validation = GeopackageService.validate_geometries(st.session_state.gdf)
+                st.json(validation)
 
-        st.divider()
-        if st.button("🔍 Validar Geometrías", use_container_width=True):
-            validation = GeopackageService.validate_geometries(st.session_state.gdf)
-            st.json(validation)
+        with col_val2:
+            if st.session_state.selected_polygon_ids:
+                if st.button("🔄 Limpiar Selección", use_container_width=True):
+                    st.session_state.selected_polygon_ids = []
 
         with st.expander("ℹ️ Información del Mapa"):
             st.metric("CRS", GeopackageService.get_crs(st.session_state.gdf))
@@ -233,3 +217,31 @@ def show_map():
                 st.caption(f"Lat: {st.session_state.bounds['miny']:.2f}° a {st.session_state.bounds['maxy']:.2f}°")
             with col2:
                 st.caption(f"Lon: {st.session_state.bounds['minx']:.2f}° a {st.session_state.bounds['maxx']:.2f}°")
+
+    # ===== COLUMNA DERECHA: INFORMACIÓN DEL POLÍGONO =====
+    with col_right:
+        st.subheader("📋 Polígono")
+
+        if st.session_state.selected_polygon_ids:
+            selected_id = st.session_state.selected_polygon_ids[0]
+            selected_polygon = GeopackageService.get_polygon_by_id(
+                st.session_state.gdf,
+                selected_id
+            )
+            show_polygon_validation_panel(selected_polygon, selected_id)
+
+            if st.session_state.multi_select_mode and len(st.session_state.selected_polygon_ids) > 1:
+                st.divider()
+                st.markdown("**Otros seleccionados:**")
+                for pid in st.session_state.selected_polygon_ids[1:]:
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.caption(f"Polígono #{pid}")
+                    with col2:
+                        if st.button("❌", key=f"remove_{pid}", use_container_width=True):
+                            st.session_state.selected_polygon_ids.remove(pid)
+
+            st.divider()
+            show_selected_polygons_summary()
+        else:
+            st.info("👆 Haz clic en un polígono para ver detalles")
