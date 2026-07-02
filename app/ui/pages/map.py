@@ -177,7 +177,7 @@ def show_map():
 
     # ===== COLUMNA DERECHA: INFORMACIÓN DEL POLÍGONO =====
     with col_right:
-        st.subheader("📋 Polígono")
+        st.subheader("📋 Polígono Seleccionado")
 
         if st.session_state.selected_polygon_ids:
             selected_id = st.session_state.selected_polygon_ids[0]
@@ -185,11 +185,15 @@ def show_map():
                 st.session_state.gdf,
                 selected_id
             )
-            show_polygon_validation_panel(selected_polygon, selected_id)
+
+            if selected_polygon:
+                show_polygon_validation_panel(selected_polygon, selected_id)
+            else:
+                st.error(f"❌ No se pudo cargar el polígono #{selected_id}")
 
             if st.session_state.multi_select_mode and len(st.session_state.selected_polygon_ids) > 1:
                 st.divider()
-                st.markdown("**Otros seleccionados:**")
+                st.markdown("**📍 Otros seleccionados:**")
                 for pid in st.session_state.selected_polygon_ids[1:]:
                     col1, col2 = st.columns([3, 1])
                     with col1:
@@ -198,7 +202,8 @@ def show_map():
                         if st.button("❌", key=f"remove_{pid}", use_container_width=True):
                             st.session_state.selected_polygon_ids.remove(pid)
 
-            st.divider()
-            show_selected_polygons_summary()
+            if len(st.session_state.selected_polygon_ids) > 1:
+                st.divider()
+                show_selected_polygons_summary()
         else:
-            st.info("👆 Haz clic en un polígono para ver detalles")
+            st.info("👆 Selecciona un polígono en el mapa para ver detalles y agregar comentarios")

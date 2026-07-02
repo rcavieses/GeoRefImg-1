@@ -20,12 +20,12 @@ def geojson_to_pydeck_geojson(geojson_data: dict, selected_ids: list = None) -> 
 
         if is_selected:
             feature['properties']['fillColor'] = [255, 165, 0, 200]
-            feature['properties']['lineColor'] = [255, 107, 0, 255]
-            feature['properties']['lineWidth'] = 3
+            feature['properties']['lineColor'] = [200, 67, 0, 255]  # Rojo-naranja oscuro
+            feature['properties']['lineWidth'] = 6  # Más grueso
         else:
             feature['properties']['fillColor'] = [51, 136, 255, 140]
-            feature['properties']['lineColor'] = [0, 81, 186, 255]
-            feature['properties']['lineWidth'] = 2
+            feature['properties']['lineColor'] = [0, 40, 120, 255]  # Azul más oscuro
+            feature['properties']['lineWidth'] = 4  # Más grueso que antes
 
         colored_features.append(feature)
 
